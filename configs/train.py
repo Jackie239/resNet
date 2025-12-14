@@ -13,26 +13,26 @@ parser.add_argument('--num_workers', type=int, default=12,
 parser.add_argument('--pretrained', type=bool, default=True,
                     help='Use pretrained resNet model')
 # training
-parser.add_argument('--batchSize', type=int, default=256,
+parser.add_argument('--batchSize', type=int, default=128,
                     help='input batch size for training')
 parser.add_argument('--num_epochs', type=int, default=10,
                     help='number of epochs to train')
 parser.add_argument('--lr', type=float, default=0.001,
                     help='learning rate')
 # device
-parser.add_argument('--device', type=str, default='cpu',
+parser.add_argument('--device', type=str, default='cuda',
                     help='cpu or cuda')
 # log
 parser.add_argument('--use_tensorboard', type=bool, default=True,
                     help='whether to use tensorboard to log training status')
-parser.add_argument('--tensorboard_dir', type=str, default='../output/tensorboard/',
+parser.add_argument('--tensorboard_dir', type=str, default='./tensorboard/',
                     help='path to save tensorboard logs')
+parser.add_argument('--log_interval', type=int, default=10,
+                    help='number of steps between logging training status')
 # checkpoint
 parser.add_argument('--output_dir', type=str, default='./output/',
                     help='path to save outputs')
 parser.add_argument('--session', type=int, default=1,
                     help='session id for this training')
-parser.add_argument('--save_interval', type=int, default=5,
+parser.add_argument('--save_interval', type=int, default=2,
                     help='number of epochs between saving model checkpoints')
-parser.add_argument('--log_interval', type=int, default=100,
-                    help='number of steps between logging training status')

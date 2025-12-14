@@ -28,7 +28,7 @@ class ResNet(nn.Module):
             return resnet18(weights=self.weightsFormat)
 
 
-    def initMoudle(self):
+    def initModule(self):
         print(">>> Initializing ResNet model.")
         print(">>> conv1 weight shape: (3, 64) - > (1, 64)")
         self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
