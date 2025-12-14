@@ -1,0 +1,36 @@
+import os
+import torch
+import torch.nn as nn
+from torchvision.models import resnet18, ResNet18_Weights
+
+
+class ResNet(nn.Module):
+    def __init__(self, pretrained=True):
+        super(ResNet, self).__init__()
+        self.weightsFormat = "IMAGENET1K_V1"
+        self.pretrained = pretrained
+        self.model = resnet18(weights=None)
+        self.preProcess = ResNet18_Weights.IMAGENET1K_V1.transforms()
+
+
+    def forward(self, input):
+        return self.model(input)
+
+
+    def loadPretrainedModel(self, pretrainedModelPath):
+        print(">>> Loading Pretrained ResNet18 model.")
+        # load resNet model from torchvision.models
+        # load from local path if pretrained is True
+        if os.path.exists(pretrainedModelPath):
+            self.model.load_state_dict(torch.load(pretrainedModelPath))
+        # download 
+        else:
+            return resnet18(weights=self.weightsFormat)
+
+
+    def initMoudle(self):
+        print(">>> Initializing ResNet model.")
+        print(">>> conv1 weight shape: (3, 64) - > (1, 64)")
+        self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        print(">>> fc weight shape: (512, 1000) - > (512, 10)")
+        self.model.fc = nn.Linear(in_features=512, out_features=10, bias=True)
