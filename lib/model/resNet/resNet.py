@@ -5,10 +5,9 @@ from torchvision.models import resnet18, ResNet18_Weights
 
 
 class ResNet(nn.Module):
-    def __init__(self, pretrained=True):
+    def __init__(self):
         super(ResNet, self).__init__()
         self.weightsFormat = "IMAGENET1K_V1"
-        self.pretrained = pretrained
         self.model = resnet18(weights=None)
         self.preProcess = ResNet18_Weights.IMAGENET1K_V1.transforms()
 
@@ -28,7 +27,7 @@ class ResNet(nn.Module):
             return resnet18(weights=self.weightsFormat)
 
 
-    def initModule(self):
+    def adaptMnist(self):
         print(">>> Initializing ResNet model.")
         print(">>> conv1 weight shape: (3, 64) - > (1, 64)")
         self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
