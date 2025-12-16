@@ -3,11 +3,11 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Train a resNet')
 # data
-parser.add_argument('--dataPath', type=str, default='./data/preTrainedModel/resnet18-5c106cde.pth',
+parser.add_argument('--dataPath', type=str, default='./data',
                     help='path to dataset')
 parser.add_argument('--shuffle', type=bool, default=True,
                     help='shuffle the dataset')
-parser.add_argument('--num_workers', type=int, default=0,
+parser.add_argument('--num_workers', type=int, default=12,
                     help='number of workers for data loading')
 # model
 parser.add_argument('--pretrained', type=bool, default=True,
@@ -20,7 +20,7 @@ parser.add_argument('--num_epochs', type=int, default=10,
 parser.add_argument('--lr', type=float, default=0.001,
                     help='learning rate')
 # device
-parser.add_argument('--device', type=str, default='cpu',
+parser.add_argument('--device', type=str, default='cuda',
                     help='cpu or cuda')
 # log
 parser.add_argument('--use_tensorboard', type=bool, default=True,
