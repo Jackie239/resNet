@@ -36,3 +36,8 @@ parser.add_argument('--session', type=int, default=1,
                     help='session id for this training')
 parser.add_argument('--save_interval', type=int, default=2,
                     help='number of epochs between saving model checkpoints')
+# network slimming
+parser.add_argument('--useNS', type=bool, default=False,
+                    help='whether to use network slimming')
+parser.add_argument('--lambdaSparsity', type=float, default=1e-4,
+                    help='sparsity regularization factor for network slimming')

@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from lib.model.resNet.resNet import ResNet
 from tqdm import tqdm
 from configs.train import parser
+import torch.nn as nn
 
 
 def get_fashion_mnist_labels(labels):
@@ -16,8 +17,14 @@ def get_fashion_mnist_labels(labels):
     return [text_labels[int(i)] for i in labels]
 
 
+def updateBN(model, lambdaSparsity):
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            m.weight.grad.data.add_(lambdaSparsity*torch.sign(m.weight.data))  # L1
+
+
 def main():
-    args = parser.parse_args(args=[])
+    args = parser.parse_args()
     print(args)
     if args.use_tensorboard:
         log_dir = os.path.join(args.tensorboard_dir, str(args.session))
@@ -72,6 +79,8 @@ def main():
             loss = criterion(scores, label)
             optimizer.zero_grad()
             loss.backward()
+            if args.useNS:
+                updateBN(resNet, args.lambdaSparsity)
             optimizer.step()
             # log
             if args.use_tensorboard:

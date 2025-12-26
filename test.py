@@ -18,9 +18,7 @@ def get_fashion_mnist_labels(labels):
 
 
 def main():
-    args = parser.parse_args(
-    args=['--device', 'cpu', '--checkEpoch', '10',
-           "--num_workers", '0'])
+    args = parser.parse_args()
     print(args)
     if args.use_tensorboard:
         log_dir = os.path.join(args.tensorboard_dir, str(args.checkSession))
