@@ -1,2 +1,14 @@
 # >>> jupyter >>>
+# ipynb_checkpoints 
 .ipynb_checkpoints
+# <<< jupyter <<<
+
+# data
+data/
+__pycache__
+.vscode
+output
+# doc
+doc/
+# jupyter notebook
+notebook/
