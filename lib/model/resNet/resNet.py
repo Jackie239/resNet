@@ -33,3 +33,14 @@ class ResNet(nn.Module):
         self.model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         print(">>> fc weight shape: (512, 1000) - > (512, 10)")
         self.model.fc = nn.Linear(in_features=512, out_features=10, bias=True)
+
+
+    def loadCheckpoint(self, checkpointPath, device):
+        # check checkpoint path exists
+        if not os.path.exists(checkpointPath):
+            raise FileNotFoundError(
+                ">>> No checkpoint found at: {}".format(checkpointPath))
+        checkpoint = torch.load(checkpointPath, map_location=device)
+        cleaned = {k.replace("model.", ""): v for k, v in checkpoint['model_state_dict'].items()}
+        self.model.load_state_dict(cleaned)
+        print(">>> checkpoint loaded")
