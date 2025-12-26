@@ -8,3 +8,7 @@ data/
 __pycache__
 .vscode
 output
+# doc
+doc/
+# jupyter notebook
+notebook/
