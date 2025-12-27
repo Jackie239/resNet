@@ -88,14 +88,14 @@ def main():
                 with torch.no_grad():
                     loss_avg_temp += loss.item()
                     acc_avg_temp += (scores.argmax(dim=1) == label).float().mean().item()
-            elif (step+1) % args.log_interval == 0:
-                # loss average
-                loss_avg_temp /= args.log_interval
-                acc_avg_temp /= args.log_interval
-                writer.add_scalar('train/loss', loss_avg_temp, epoch*iters_per_epoch+step+1)
-                writer.add_scalar('train/accuracy', acc_avg_temp, epoch*iters_per_epoch+step+1)
-                loss_avg_temp = 0
-                acc_avg_temp = 0
+                if (step+1) % args.log_interval == 0:
+                    # loss average
+                    loss_avg_temp /= args.log_interval
+                    acc_avg_temp /= args.log_interval
+                    writer.add_scalar('train/loss', loss_avg_temp, epoch*iters_per_epoch+step+1)
+                    writer.add_scalar('train/accuracy', acc_avg_temp, epoch*iters_per_epoch+step+1)
+                    loss_avg_temp = 0
+                    acc_avg_temp = 0
         # save model checkpoint
         if (epoch+1) % args.save_interval == 0:
             if not os.path.exists(args.checkpoint_dir):
