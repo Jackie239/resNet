@@ -68,13 +68,10 @@ def main():
     resNet.eval()
     resNet.to(args.device)
 
-    # set log_interval to checkPoint for test
-    args.log_interval = args.checkPoint
-    iters_per_epoch = int(testSize / args.batchSize)
+    iters_per_epoch = int(((testSize + args.batchSize - 1) / args.batchSize))
     res = torch.zeros(testSize, dtype=torch.int8)
-    if args.use_tensorboard:
-        loss_avg_temp = 0.0
-        acc_avg_temp = 0.0
+    loss_avg_temp = 0.0
+    acc_avg_temp = 0.0
     for step, (images, label) in tqdm(enumerate(DataLoaderTest)):
         # move data to device
         images = images.to(args.device)
@@ -83,24 +80,15 @@ def main():
         scores = resNet(images)
         loss = criterion(scores, label)
         label_hat = scores.argmax(dim=1)
-        # log
-        if args.use_tensorboard:
-            # compute loss and accuracy
-            with torch.no_grad():
-                loss_avg_temp += loss.item()
-                acc_avg_temp += (label_hat == label).float().mean().item()
-        elif ((step+1) % args.log_interval == 0):
-            # loss average
-            loss_avg_temp /= args.log_interval
-            acc_avg_temp /= args.log_interval
-            writer.add_scalar('test/loss', loss_avg_temp, step+1)
-            writer.add_scalar('test/accuracy', acc_avg_temp, step+1)
-            loss_avg_temp = 0
-            acc_avg_temp = 0
-
         # store results
         res[step*args.batchSize : (step+1)*args.batchSize] = label_hat.cpu()
 
+        with torch.no_grad():
+            loss_avg_temp += loss.item()
+            acc_avg_temp += (label_hat == label).float().mean().item()
+    # compute loss and accuracy average
+    loss_avg_temp /= iters_per_epoch
+    acc_avg_temp /= iters_per_epoch
     # save results to file
     resultPath = os.path.join(
         args.res_dir, str(args.checkSession), 'predictions_{}_{}_{}.csv'.format(
@@ -111,6 +99,8 @@ def main():
     df = pd.DataFrame({
         "sampleIdx": torch.arange(0, testSize),
         "predictionResult": res,
+        "average loss": loss_avg_temp,
+        "average accuracy": acc_avg_temp
     })
     df.to_csv(resultPath)
 

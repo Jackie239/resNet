@@ -64,7 +64,7 @@ def main():
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(resNet.parameters(), lr=args.lr)
 
-    iters_per_epoch = int(trainSize / args.batchSize)
+    iters_per_epoch = int(((trainSize + args.batchSize - 1) / args.batchSize))
     for epoch in tqdm(range(args.num_epochs), desc="Epochs", position=0):
     # for epoch in range(args.num_epochs):
         if args.use_tensorboard:
