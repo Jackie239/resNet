@@ -1,6 +1,7 @@
 import os
 import torch
 import pickle
+import pandas as pd
 from torchvision import transforms
 from torchvision import datasets
 from torch.utils.data import DataLoader
@@ -102,18 +103,16 @@ def main():
 
     # save results to file
     resultPath = os.path.join(
-        args.res_dir, args.checkSession, 'predictions_{}_{}_{}.csv'.format(
+        args.res_dir, str(args.checkSession), 'predictions_{}_{}_{}.csv'.format(
         args.checkSession, args.checkEpoch, args.checkPoint))
     if not os.path.exists(os.path.dirname(resultPath)):
         os.makedirs(os.path.dirname(resultPath))
 
-    res = res.view(-1, 1)
-    imageList = torch.arange(0, testSize).view(-1, 1)
-    res = torch.cat((imageList, res), dim=1)
-
-    with open(resultPath, 'wb') as f:
-            pickle.dump(res.numpy(), f, pickle.HIGHEST_PROTOCOL)
-    print(">>> test results saved to {}".format(resultPath))
+    df = pd.DataFrame({
+        "sampleIdx": torch.arange(0, testSize),
+        "predictionResult": res,
+    })
+    df.to_csv(resultPath)
 
 if __name__ == "__main__":
     main()
