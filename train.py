@@ -101,8 +101,8 @@ def main():
             if not os.path.exists(args.checkpoint_dir):
                 os.makedirs(args.checkpoint_dir)
             modelSavePath = os.path.join(
-                args.checkpoint_dir, args.session,
-                "resNet_{}_{}_{}.pth".format(str(args.session), str(epoch+1), str(step+1)))
+                args.checkpoint_dir, str(args.session),
+                "resNet_{}_{}_{}.pth".format(args.session, epoch+1, step+1))
             checkpoint = {'epoch': epoch + 1,
                         'step': step + 1,
                         'model_state_dict': resNet.state_dict(),
