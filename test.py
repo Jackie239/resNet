@@ -21,11 +21,6 @@ def get_fashion_mnist_labels(labels):
 def main():
     args = parser.parse_args()
     print(args)
-    if args.use_tensorboard:
-        log_dir = os.path.join(args.tensorboard_dir, str(args.checkSession))
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        writer = SummaryWriter(log_dir=log_dir)
     
     # pre-process
     # PIL -> torch.float32.Tensor

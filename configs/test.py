@@ -13,14 +13,6 @@ parser.add_argument('--batchSize', type=int, default=64,
 # device
 parser.add_argument('--device', type=str, default='cuda',
                     help='cpu or cuda')
-# log
-parser.add_argument('--use_tensorboard', type=bool, default=True,
-                    help='whether to use tensorboard to log training status')
-parser.add_argument('--tensorboard_dir', type=str, default='./output/tensorboard/',
-                    help='path to save tensorboard logs')
-parser.add_argument('--log_interval', type=int, default=10,
-                    help='number of steps between logging,' \
-                    ' for test, it equals checkPoint')
 # checkpoint
 parser.add_argument('--checkpoint_dir', type=str, default='./output/checkpoints/',
                     help='path to save checkpoints')
