@@ -12,3 +12,5 @@ output
 doc/
 # jupyter notebook
 notebook/
+# pycharm
+.idea/
