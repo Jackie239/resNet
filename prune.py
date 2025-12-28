@@ -33,7 +33,6 @@ def test(model, args):
             acc_avg_temp += (label_hat == label).float().mean().item()
     # compute loss and accuracy average
     acc_avg_temp /= iters_per_epoch
-    print("\nTest set: Average accuracy: {:.4f}\n".format(acc_avg_temp))
     return acc_avg_temp
 
 def main():
@@ -48,7 +47,8 @@ def main():
     checkpointPath = os.path.join(
         args.checkpoint_dir, str(args.checkSession), str(checkpointName))
     resNet.loadCheckpoint(checkpointPath, args.device)
-
+    # to gpu
+    resNet.to(args.device)
     # 统计所有 scaling factor(gamma) 的数量
     total = 0
     for m in resNet.modules():
@@ -85,9 +85,9 @@ def main():
         elif isinstance(m, torch.nn.MaxPool2d):
             cfg.append('M')
     pruned_ratio = pruned/total
-    print('Pre-processing Successful!')
+    print('>>> Pre-processing Successful!')
     acc = test(resNet, args)
-
+    print(">>> pruned model accuracy: {}".format(acc))
     pass
     
 

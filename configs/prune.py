@@ -6,6 +6,9 @@ parser.add_argument('--dataPath', type=str, default='./data',
                     help='path to dataset')
 parser.add_argument('--num_workers', type=int, default=12,
                     help='number of workers for data loading')
+# testing
+parser.add_argument('--batchSize', type=int, default=64,
+                    help='input batch size for training')
 # checkpoint
 parser.add_argument('--checkpoint_dir', type=str, default='./output/checkpoints/',
                     help='path to save checkpoints')
