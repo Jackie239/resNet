@@ -1,6 +1,5 @@
 import os
 import torch
-import pickle
 import pandas as pd
 from torchvision import transforms
 from torchvision import datasets

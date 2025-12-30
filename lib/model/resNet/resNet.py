@@ -40,7 +40,7 @@ class ResNet(nn.Module):
         if not os.path.exists(checkpointPath):
             raise FileNotFoundError(
                 ">>> No checkpoint found at: {}".format(checkpointPath))
-        checkpoint = torch.load(checkpointPath, map_location=device)
+        checkpoint = torch.load(checkpointPath, map_location=device, weights_only=True)
         cleaned = {k.replace("model.", ""): v for k, v in checkpoint['model_state_dict'].items()}
         self.model.load_state_dict(cleaned)
         print(">>> checkpoint loaded")
