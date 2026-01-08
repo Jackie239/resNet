@@ -129,7 +129,7 @@ def main():
             # 主分支的最后一个 bn 的上两个应该是 ReLU
             # 短接上的最后一个 bn 的下一个是 select
             elif (isinstance(old_modules[layer_id-2], torch.nn.ReLU)
-            or (isinstance(old_modules[layer_id+1], channel_selection))):
+            or (isinstance(old_modules[layer_id+2], channel_selection))):
                 m1.weight.data = m0.weight.data.clone()
                 layer_id_in_cfg += 1
                 start_mask = end_mask.clone()
