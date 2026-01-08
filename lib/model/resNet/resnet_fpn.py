@@ -216,10 +216,14 @@ class ResNet(nn.Module):
             # resnet 18
             # 每个stage的block数量
             if layers == [2, 2, 2, 2]:
-                cfg = [[64, 64]*layers[0],
+                cfg = [[self.inplanes],
+                       [64, 64]*layers[0],
                        [128, 128, 128], [128, 128]*(layers[1]-1),
                        [256, 256, 256], [256, 256]*(layers[2]-1),
                        [512, 512, 512], [512, 512]*(layers[3]-1)]
+                self.stageStride = [1, 5, 10, 15]
+                self.block1Stride = [1, 3]
+                self.block2Stride = [1, 4]
                 # 这里只包含主分支的 bn channel，main中cfg需要将短接的bn去掉，或者在这里去掉
                 self.block_bn_count = 2
                 # cfg = [
