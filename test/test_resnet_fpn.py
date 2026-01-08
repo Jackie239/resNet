@@ -4,7 +4,7 @@ import torch.nn as nn
 
 
 def main():
-    cfg = [64, 64, 64, 60, 64, 75, 116, 116, 99, 113, 111, 211, 198, 124, 147, 134, 349, 147, 187, 436]
+    cfg = [64, 64, 64, 60, 64, 75,  116, 116, 99,  113, 111, 211, 198, 124, 147, 134, 349, 147, 187, 436]
     resnet18 = ResNet(BasicBlockWithSelect, [2, 2, 2, 2], num_classes=10, cfg=cfg)
     # resnet18 = ResNet(BasicBlockWithSelect, [2, 2, 2, 2], num_classes=10)
     resnet18.conv1 = nn.Conv2d(

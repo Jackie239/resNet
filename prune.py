@@ -56,8 +56,8 @@ def main():
     # to gpu
     resnet18.to(args.device)
     resnet18.eval()
-    acc = test(resnet18, args)
-    print(">>> original model accuracy: {}".format(acc))
+    # acc = test(resnet18, args)
+    # print(">>> original model accuracy: {}".format(acc))
     # 统计所有 scaling factor(gamma) 的数量
     total = 0
     for m in resnet18.modules():
@@ -97,8 +97,8 @@ def main():
     print('>>> Pre-processing Successful!')
     pruned_ratio = pruned/total
     print("pruned_ratio: {:.2f}".format(pruned_ratio))
-    acc = test(resnet18, args)
-    print("soft pruned model accuracy: {}".format(acc))
+    # acc = test(resnet18, args)
+    # print("soft pruned model accuracy: {}".format(acc))
     print("Cfg: {}".format(cfg))
     # build a pruned model
     resnet18_pruned = ResNet(BasicBlockWithSelect, [2, 2, 2, 2], num_classes=10, cfg=cfg)

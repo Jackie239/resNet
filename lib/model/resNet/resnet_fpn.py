@@ -216,19 +216,19 @@ class ResNet(nn.Module):
             # resnet 18
             # 每个stage的block数量
             if layers == [2, 2, 2, 2]:
-                # cfg = [[64, 64]*layers[0],
-                #        [128, 128, 128], [128, 128]*(layers[1]-1),
-                #        [256, 256, 256], [256, 256]*(layers[2]-1),
-                #        [512, 512, 512], [512, 512]*(layers[3]-1)]
+                cfg = [[64, 64]*layers[0],
+                       [128, 128, 128], [128, 128]*(layers[1]-1),
+                       [256, 256, 256], [256, 256]*(layers[2]-1),
+                       [512, 512, 512], [512, 512]*(layers[3]-1)]
                 # 这里只包含主分支的 bn channel，main中cfg需要将短接的bn去掉，或者在这里去掉
                 self.block_bn_count = 2
-                self.cfg = [
-                    [self.inplanes],
-                    [64, 64]*layers[0],
-                    [128, 128]*(layers[1]),
-                    [256, 256]*(layers[2]),
-                    [512, 512]*(layers[3])]
-                self.cfg = [item for sub_list in self.cfg for item in sub_list]
+                # cfg = [
+                #     [self.inplanes],
+                #     [64, 64]*layers[0],
+                #     [128, 128]*(layers[1]),
+                #     [256, 256]*(layers[2]),
+                #     [512, 512]*(layers[3])]
+                self.cfg = [item for sub_list in cfg for item in sub_list]
 
             # resnet 34
             elif layers == [3, 4, 6, 3]:
@@ -242,19 +242,25 @@ class ResNet(nn.Module):
             else:
                 raise ValueError("Invalid layers configuration: layers {}".format(layers))
         else:
-            # 去掉 cfg 中短接部分的 bn channel
+
             if layers == [2, 2, 2, 2]:
                 self.block_bn_count = 2
-                idxRemove = []
-                stage_stride = 1
-                for stage, block_num in enumerate(layers):
-                    if stage == 0:
-                        stage_stride += self.block_bn_count*block_num
-                    else:
-                        idxRemove.append(stage_stride+self.block_bn_count)
-                        stage_stride += (self.block_bn_count*block_num+1)
-                idxRemove_set = set(idxRemove)
-                self.cfg = [item for i, item in enumerate(cfg) if i not in idxRemove_set]
+                self.cfg = cfg
+                self.stageStride = [1, 5, 10, 15]
+                self.block1Stride = [1, 3]
+                self.block2Stride = [1, 4]
+                # # 去掉 cfg 中短接部分的 bn channel
+                # self.block_bn_count = 2
+                # idxRemove = []
+                # stage_stride = 1
+                # for stage, block_num in enumerate(layers):
+                #     if stage == 0:
+                #         stage_stride += self.block_bn_count*block_num
+                #     else:
+                #         idxRemove.append(stage_stride+self.block_bn_count)
+                #         stage_stride += (self.block_bn_count*block_num+1)
+                # idxRemove_set = set(idxRemove)
+                # self.cfg = [item for i, item in enumerate(cfg) if i not in idxRemove_set]
             elif layers == [3, 4, 6, 3]:
                 pass
             elif layers == [3, 4, 6, 3]:
@@ -272,10 +278,10 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True)  # change
         # stage 1-4
-        self.layer1 = self._make_layer(block, 64, layers[0], cfg=self.cfg[0:(self.block_bn_count*layers[0]+1)])
-        self.layer2 = self._make_layer(block, 128, layers[1], cfg=self.cfg[(self.block_bn_count*layers[0]):(self.block_bn_count*(layers[0]+layers[1]+1))], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], cfg=self.cfg[(self.block_bn_count*(layers[0]+layers[1])):(self.block_bn_count*(layers[0]+layers[1]+layers[2]+1))], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], cfg=self.cfg[(self.block_bn_count*(layers[0]+layers[1]+layers[2])):(self.block_bn_count*(layers[0]+layers[1]+layers[2]+layers[3]+1))], stride=2)
+        self.layer1 = self._make_layer(block, 64, layers[0], self.cfg[self.stageStride[0]-1:self.stageStride[0]+self.block_bn_count*layers[0]], self.block1Stride, isStage1=True)
+        self.layer2 = self._make_layer(block, 128, layers[1], self.cfg[self.stageStride[1]-1:self.stageStride[1]+self.block_bn_count*layers[1]+1], self.block2Stride, stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], self.cfg[self.stageStride[2]-1:self.stageStride[2]+self.block_bn_count*layers[2]+1], self.block2Stride, stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], self.cfg[self.stageStride[3]-1:self.stageStride[3]+self.block_bn_count*layers[3]+1], self.block2Stride, stride=2)
         # it is slightly better whereas slower to set stride = 1
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
         self.avgpool = nn.AvgPool2d(7)
@@ -289,7 +295,12 @@ class ResNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _make_layer(self, block, planes, blocks, cfg, stride=1):
+    def _make_layer(self, block, planes, blocks, cfg, blockStride, stride=1, isStage1=False):
+        if not isStage1:
+            downsmpleStride = 1
+        else:
+            downsmpleStride = 0
+        # [64, 64, 64, 60, 64]
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -300,10 +311,10 @@ class ResNet(nn.Module):
         # cfg = [64, 64, 64, 64, 64]
         #           [current stage ]
         layers = []
-        layers.append(block(self.inplanes, planes, cfg[0:self.block_bn_count+1], stride, downsample))
+        layers.append(block(self.inplanes, planes, cfg[blockStride[0]-1:blockStride[0]+self.block_bn_count+downsmpleStride], stride, downsample))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, cfg[self.block_bn_count*i:(self.block_bn_count*(i+1)+1)]))
+            layers.append(block(self.inplanes, planes, cfg[blockStride[i]-1:blockStride[i]+self.block_bn_count+1]))
 
         return nn.Sequential(*layers)
 
