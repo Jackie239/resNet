@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn import Sequential
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -105,7 +106,7 @@ def main():
     resnet18_pruned.conv1 = nn.Conv2d(
         in_channels=1, out_channels=resnet18_pruned.conv1.out_channels, kernel_size=resnet18_pruned.conv1.kernel_size,
         stride=resnet18_pruned.conv1.stride, padding=resnet18_pruned.conv1.padding, bias=resnet18_pruned.conv1.bias)
-
+    # 这种 list 遍历有问题
     old_modules = list(resnet18.modules())
     new_modules = list(resnet18_pruned.modules())
     layer_id_in_cfg = 0
@@ -117,6 +118,7 @@ def main():
         m0 = old_modules[layer_id]
         m1 = new_modules[layer_id]
         if isinstance(m0, nn.BatchNorm2d):
+            # 当前 bn 对应的 mask
             idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
             if idx1.size == 1:
                 idx1 = np.resize(idx1, (1,))
@@ -124,13 +126,22 @@ def main():
             # stem 中的 bn 不剪枝
             if bn_count == 1:
                 m1.weight.data = m0.weight.data.clone()
+                m1.bias.data = m0.bias.data.clone()
+                m1.running_mean = m0.running_mean.clone()
+                m1.running_var = m0.running_var.clone()
                 layer_id_in_cfg += 1
+                start_mask = end_mask.clone()
+                if layer_id_in_cfg < len(cfg_mask):
+                    end_mask = cfg_mask[layer_id_in_cfg]
             # block 中，主分支的最后一个 bn 和短接上的最后一个 bn 不剪枝
             # 主分支的最后一个 bn 的上两个应该是 ReLU
             # 短接上的最后一个 bn 的下一个是 select
             elif (isinstance(old_modules[layer_id-2], torch.nn.ReLU)
             or (isinstance(old_modules[layer_id+2], channel_selection))):
                 m1.weight.data = m0.weight.data.clone()
+                m1.bias.data = m0.bias.data.clone()
+                m1.running_mean = m0.running_mean.clone()
+                m1.running_var = m0.running_var.clone()
                 layer_id_in_cfg += 1
                 start_mask = end_mask.clone()
                 if layer_id_in_cfg < len(cfg_mask):
@@ -146,22 +157,20 @@ def main():
                 if layer_id_in_cfg < len(cfg_mask):
                     end_mask = cfg_mask[layer_id_in_cfg]
         elif isinstance(m0, channel_selection):
-            idx1 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
-            if idx1.size == 1:
-                idx1 = np.resize(idx1, (1,))
+            idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
+            if idx0.size == 1:
+                idx0 = np.resize(idx0, (1,))
             # We need to set the channel selection layer.
-            m2 = new_modules[layer_id]
             # [B, C, 1, 1]
-            m2.indexes.data.zero_()
-            m2.indexes.data[idx1.tolist()] = 1.0
+            m1.indexes.data.zero_()
+            m1.indexes.data[idx0.tolist()] = 1.0
         elif isinstance(m0, torch.nn.Conv2d):
             conv_count += 1
             # stem 中的 conv 不剪枝
             if conv_count == 1:
                 m1.weight.data = m0.weight.data.clone()
-            # 短接上的 conv 不剪枝
-            # 短接的上一个应该是 bn
-            elif isinstance(old_modules[layer_id - 1], torch.nn.BatchNorm2d):
+            # 短接上的 conv 不剪枝, 短接的上一个应该是 Sequential
+            elif isinstance(old_modules[layer_id - 2], Sequential):
                 m1.weight.data = m0.weight.data.clone()
             # 主分支的第一个 conv 要剪枝
             # 主分支的第一个 conv 的上一个是 select
@@ -183,6 +192,7 @@ def main():
                     idx0 = np.resize(idx0, (1,))
                 w1 = m0.weight.data[:, idx0.tolist(), :, :].clone()
                 m1.weight.data = w1.clone()
+        print("module: {} keep".format(m0.__class__.__name__))
         # fc 不剪枝
     print(">>> Successfully build pruned model!")
     # test pruned model
