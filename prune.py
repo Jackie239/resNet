@@ -1,13 +1,13 @@
 import os
+import numpy as np
 import torch
 import torch.nn as nn
 from torchvision import datasets, transforms
-from configs.prune import parser
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from lib.utils import loadCheckpoint
+from configs.prune import parser
 from lib.model.resNet.resnet_fpn import ResNet, BasicBlockWithSelect, channel_selection
-import numpy as np
 
 
 def test(model, args):
@@ -37,70 +37,6 @@ def test(model, args):
     return acc_avg_temp
 
 
-def apply_pruning(model, cfg_mask):
-    """
-    使用 torch.nn.utils.prune API 在原始模型上应用 Network Slimming 剪枝
-    cfg_mask: 每个 BN 层的 mask 列表 (torch.Tensor, shape=[C])
-    """
-    layer_id_in_cfg = 0
-    start_mask = torch.ones(1)  # 输入 RGB 三通道
-    end_mask = cfg_mask[layer_id_in_cfg]
-    conv_count = 0
-
-    for layer_id, m in enumerate(model.modules()):
-        if isinstance(m, nn.BatchNorm2d):
-            idx1 = torch.nonzero(end_mask).squeeze().tolist()
-            if not isinstance(idx1, list):
-                idx1 = [idx1]
-
-            # BN 层直接裁剪参数
-            m.weight.data = m.weight.data[idx1].clone()
-            m.bias.data = m.bias.data[idx1].clone()
-            m.running_mean = m.running_mean[idx1].clone()
-            m.running_var = m.running_var[idx1].clone()
-
-            layer_id_in_cfg += 1
-            start_mask = end_mask.clone()
-            if layer_id_in_cfg < len(cfg_mask):
-                end_mask = cfg_mask[layer_id_in_cfg]
-
-        elif isinstance(m, nn.Conv2d):
-            if conv_count == 0:
-                # 第一层 Conv 不剪枝
-                conv_count += 1
-                continue
-
-            idx0 = torch.nonzero(start_mask).squeeze().tolist()
-            idx1 = torch.nonzero(end_mask).squeeze().tolist()
-            if not isinstance(idx0, list): idx0 = [idx0]
-            if not isinstance(idx1, list): idx1 = [idx1]
-
-            # 输入通道 mask
-            in_mask = torch.zeros(m.in_channels)
-            in_mask[idx0] = 1
-            prune.custom_from_mask(m, name="weight", mask=in_mask.view(1, -1, 1, 1).expand_as(m.weight))
-
-            # 输出通道 mask（非残差块最后一层）
-            if conv_count % 3 != 1:
-                out_mask = torch.zeros(m.out_channels)
-                out_mask[idx1] = 1
-                prune.custom_from_mask(m, name="weight", mask=out_mask.view(-1, 1, 1, 1).expand_as(m.weight))
-
-            prune.remove(m, "weight")  # 固定剪枝结果
-            conv_count += 1
-
-        elif isinstance(m, nn.Linear):
-            idx0 = torch.nonzero(start_mask).squeeze().tolist()
-            if not isinstance(idx0, list): idx0 = [idx0]
-
-            in_mask = torch.zeros(m.in_features)
-            in_mask[idx0] = 1
-            prune.custom_from_mask(m, name="weight", mask=in_mask.view(1, -1).expand_as(m.weight))
-            prune.remove(m, "weight")
-
-    return model
-
-
 def main():
     args = parser.parse_args()
     print(args)
@@ -115,14 +51,13 @@ def main():
     print(">>> load checkpoint : {}".format(checkpointName))
     checkpointPath = os.path.join(
         args.checkpoint_dir, str(args.checkSession), str(checkpointName))
-    # resNet.loadCheckpoint(checkpointPath, args.device)
     loadCheckpoint(resnet18, checkpointPath, device="cpu", replace=True, strict=False)
 
     # to gpu
-    resNet.to(args.device)
-    resNet.eval()
-    # acc = test(resNet, args)
-    # print(">>> pre-pruned model accuracy: {}".format(acc))
+    resnet18.to(args.device)
+    resnet18.eval()
+    acc = test(resnet18, args)
+    print(">>> original model accuracy: {}".format(acc))
     # 统计所有 scaling factor(gamma) 的数量
     total = 0
     for m in resnet18.modules():
@@ -143,7 +78,7 @@ def main():
     pruned = 0
     cfg = []
     cfg_mask = []
-    for k, m in enumerate(tqdm(resNet.modules())):
+    for k, m in enumerate(tqdm(resnet18.modules())):
         if isinstance(m, torch.nn.BatchNorm2d):
             weight_copy = m.weight.data.abs().clone()
             # tensor.gt(threshold)  大于threshold的位置为True，否则为False
@@ -159,17 +94,17 @@ def main():
         # M 不再加入
         # elif isinstance(m, torch.nn.MaxPool2d):
         #     cfg.append('M')
+    print('>>> Pre-processing Successful!')
     pruned_ratio = pruned/total
     print("pruned_ratio: {:.2f}".format(pruned_ratio))
-    print('>>> Pre-processing Successful!')
-    # acc = test(resNet, args)
-    # print(">>> pruned model accuracy: {}".format(acc))
+    acc = test(resnet18, args)
+    print("soft pruned model accuracy: {}".format(acc))
     print("Cfg: {}".format(cfg))
     # build a pruned model
     resnet18_pruned = ResNet(BasicBlockWithSelect, [2, 2, 2, 2], num_classes=10, cfg=cfg)
     resnet18_pruned.conv1 = nn.Conv2d(
         in_channels=1, out_channels=resnet18_pruned.conv1.out_channels, kernel_size=resnet18_pruned.conv1.kernel_size,
-        stride=resnet18_pruned.conv1.stride, padding=resnet18.conv1.padding, bias=resnet18_pruned.conv1.bias)
+        stride=resnet18_pruned.conv1.stride, padding=resnet18_pruned.conv1.padding, bias=resnet18_pruned.conv1.bias)
 
     old_modules = list(resnet18.modules())
     new_modules = list(resnet18_pruned.modules())
@@ -249,7 +184,12 @@ def main():
                 w1 = m0.weight.data[:, idx0.tolist(), :, :].clone()
                 m1.weight.data = w1.clone()
         # fc 不剪枝
-    pass
+    print(">>> Successfully build pruned model!")
+    # test pruned model
+    resnet18_pruned.to(args.device)
+    resnet18_pruned.eval()
+    acc = test(resnet18_pruned, args)
+    print(">>> hard pruned model accuracy: {}".format(acc))
 
 if __name__ == "__main__":
     main()
