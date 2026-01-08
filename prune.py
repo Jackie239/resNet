@@ -169,12 +169,19 @@ def main():
             # stem 中的 conv 不剪枝
             if conv_count == 1:
                 m1.weight.data = m0.weight.data.clone()
-            # 短接上的 conv 不剪枝, 短接的上一个应该是 Sequential
-            elif isinstance(old_modules[layer_id - 2], Sequential):
+            # 短接的 conv 不剪枝, 短接的上一个应该是 Sequential
+            elif isinstance(old_modules[layer_id - 1], Sequential):
                 m1.weight.data = m0.weight.data.clone()
-            # 主分支的第一个 conv 要剪枝
-            # 主分支的第一个 conv 的上一个是 select
-            elif isinstance(old_modules[layer_id - 1], channel_selection):
+            # 主分支的最后一个 conv 只剪枝 C, 上一个是ReLU
+            elif isinstance(old_modules[layer_id - 1], torch.nn.ReLU):
+                idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
+                idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
+                if idx0.size == 1:
+                    idx0 = np.resize(idx0, (1,))
+                w1 = m0.weight.data[:, idx0.tolist(), :, :].clone()
+                m1.weight.data = w1.clone()
+            # 其余剪枝 B 和 C
+            else:
                 idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
                 idx1 = np.squeeze(np.argwhere(np.asarray(end_mask.cpu().numpy())))
                 if idx0.size == 1:
@@ -184,16 +191,11 @@ def main():
                 w1 = m0.weight.data[:, idx0.tolist(), :, :].clone()
                 w1 = w1[idx1.tolist(), :, :, :].clone()
                 m1.weight.data = w1.clone()
-            # 主分支的最后一个 conv 只剪枝通道
-            # 主分支的最后一个 conv 上一个是ReLU
-            elif isinstance(old_modules[layer_id - 1], torch.nn.ReLU):
-                idx0 = np.squeeze(np.argwhere(np.asarray(start_mask.cpu().numpy())))
-                if idx0.size == 1:
-                    idx0 = np.resize(idx0, (1,))
-                w1 = m0.weight.data[:, idx0.tolist(), :, :].clone()
-                m1.weight.data = w1.clone()
-        print("module: {} keep".format(m0.__class__.__name__))
         # fc 不剪枝
+        elif isinstance(m0, nn.Linear):
+            m1.weight.data = m0.weight.data.clone()
+            m1.bias.data = m0.bias.data.clone()
+
     print(">>> Successfully build pruned model!")
     # test pruned model
     resnet18_pruned.to(args.device)
