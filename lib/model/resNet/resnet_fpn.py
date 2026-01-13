@@ -91,7 +91,7 @@ class BasicBlock(nn.Module):
 class BasicBlockWithSelect(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, cfg, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, cfg, cfg_select, stride=1, downsample=None):
         super(BasicBlockWithSelect, self).__init__()
         self.select = channel_selection(inplanes)
         # cfg [64, 64, 64] for resnet18
@@ -101,7 +101,7 @@ class BasicBlockWithSelect(nn.Module):
         # self.relu = nn.ReLU(inplace=True)
         # self.conv2 = conv3x3(planes, planes)
         # self.bn2 = nn.BatchNorm2d(planes)
-        self.conv1 = conv3x3(cfg[0], cfg[1], stride)
+        self.conv1 = conv3x3(cfg_select, cfg[1], stride)
         self.bn1 = nn.BatchNorm2d(cfg[1])
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = conv3x3(cfg[1], planes)
@@ -109,9 +109,9 @@ class BasicBlockWithSelect(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x):
+    
+    def forward_resBeforeSelect(self, x):
         residual = x
-
         out = self.select(x)
         out = self.conv1(out)
         out = self.bn1(out)
@@ -127,6 +127,31 @@ class BasicBlockWithSelect(nn.Module):
         out = self.relu(out)
 
         return out
+
+    def forward_selectBeforeRes(self, x):
+        out = self.select(x)
+        residual = out.clone()
+        out = self.conv1(out)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+    def forward(self, x):
+        # block with downsample
+        if self.downsample is not None:
+            return self.forward_selectBeforeRes(x)
+        # block without downsample
+        else:
+            return self.forward_resBeforeSelect(x)
 
 
 class Bottleneck(nn.Module):
@@ -209,7 +234,7 @@ class BottleneckWithSelect(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=1000, cfg=None):
+    def __init__(self, block, layers, num_classes=1000, cfg=None, cfg_select=None):
         super(ResNet, self).__init__()
         self.inplanes = 64
         if cfg is None:
@@ -221,6 +246,8 @@ class ResNet(nn.Module):
                        [128, 128, 128], [128, 128]*(layers[1]-1),
                        [256, 256, 256], [256, 256]*(layers[2]-1),
                        [512, 512, 512], [512, 512]*(layers[3]-1)]
+                self.cfg_select = [
+                    64, 64, 64, 128, 128, 256, 256, 512]
                 self.stageStride = [1, 5, 10, 15]
                 self.block1Stride = [1, 3]
                 self.block2Stride = [1, 4]
@@ -253,18 +280,8 @@ class ResNet(nn.Module):
                 self.stageStride = [1, 5, 10, 15]
                 self.block1Stride = [1, 3]
                 self.block2Stride = [1, 4]
-                # # 去掉 cfg 中短接部分的 bn channel
-                # self.block_bn_count = 2
-                # idxRemove = []
-                # stage_stride = 1
-                # for stage, block_num in enumerate(layers):
-                #     if stage == 0:
-                #         stage_stride += self.block_bn_count*block_num
-                #     else:
-                #         idxRemove.append(stage_stride+self.block_bn_count)
-                #         stage_stride += (self.block_bn_count*block_num+1)
-                # idxRemove_set = set(idxRemove)
-                # self.cfg = [item for i, item in enumerate(cfg) if i not in idxRemove_set]
+                self.cfg_select = cfg_select
+
             elif layers == [3, 4, 6, 3]:
                 pass
             elif layers == [3, 4, 6, 3]:
@@ -282,10 +299,14 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0, ceil_mode=True)  # change
         # stage 1-4
-        self.layer1 = self._make_layer(block, 64, layers[0], self.cfg[self.stageStride[0]-1:self.stageStride[0]+self.block_bn_count*layers[0]], self.block1Stride, isStage1=True)
-        self.layer2 = self._make_layer(block, 128, layers[1], self.cfg[self.stageStride[1]-1:self.stageStride[1]+self.block_bn_count*layers[1]+1], self.block2Stride, stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], self.cfg[self.stageStride[2]-1:self.stageStride[2]+self.block_bn_count*layers[2]+1], self.block2Stride, stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], self.cfg[self.stageStride[3]-1:self.stageStride[3]+self.block_bn_count*layers[3]+1], self.block2Stride, stride=2)
+        self.layer1 = self._make_layer(block, 64, layers[0], self.cfg[self.stageStride[0]-1:self.stageStride[0]+self.block_bn_count*layers[0]],
+                                       self.block1Stride, self.cfg_select[0:sum(layers[:1])])
+        self.layer2 = self._make_layer(block, 128, layers[1], self.cfg[self.stageStride[1]-1:self.stageStride[1]+self.block_bn_count*layers[1]+1],
+                                       self.block2Stride, self.cfg_select[sum(layers[:1]):sum(layers[:2])], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], self.cfg[self.stageStride[2]-1:self.stageStride[2]+self.block_bn_count*layers[2]+1],
+                                       self.block2Stride, self.cfg_select[sum(layers[:2]):sum(layers[:3])], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], self.cfg[self.stageStride[3]-1:self.stageStride[3]+self.block_bn_count*layers[3]+1],
+                                       self.block2Stride, self.cfg_select[sum(layers[:3]):sum(layers[:4])], stride=2)
         # it is slightly better whereas slower to set stride = 1
         # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
         self.avgpool = nn.AvgPool2d(7)
@@ -299,26 +320,33 @@ class ResNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _make_layer(self, block, planes, blocks, cfg, blockStride, stride=1, isStage1=False):
-        if not isStage1:
-            downsmpleStride = 1
-        else:
-            downsmpleStride = 0
-        # [64, 64, 64, 60, 64]
+    def _make_layer(self, block, planes, blocks, cfg, blockStride, cfg_select, stride=1):
+        # cfg = [64, 64, 64, 64, 64]
+        #           [current stage ]
         downsample = None
+        # is 1st stage
         if stride != 1 or self.inplanes != planes * block.expansion:
+            downsmpleStride = 1
+            # downsample = nn.Sequential(
+            #     nn.Conv2d(self.inplanes, planes * block.expansion,
+            #               kernel_size=1, stride=stride, bias=False),
+            #     nn.BatchNorm2d(planes * block.expansion),
+            # )
             downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
+                nn.Conv2d(cfg_select[0], planes * block.expansion,
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion),
             )
-        # cfg = [64, 64, 64, 64, 64]
-        #           [current stage ]
+        else:
+            downsmpleStride = 0
+
         layers = []
-        layers.append(block(self.inplanes, planes, cfg[blockStride[0]-1:blockStride[0]+self.block_bn_count+downsmpleStride], stride, downsample))
+        # build 1st block in one stage
+        layers.append(block(self.inplanes, planes, cfg[blockStride[0]-1:blockStride[0]+self.block_bn_count+downsmpleStride], cfg_select[0], stride, downsample))
         self.inplanes = planes * block.expansion
+        # build remained blocks in one stage
         for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, cfg[blockStride[i]-1:blockStride[i]+self.block_bn_count+1]))
+            layers.append(block(self.inplanes, planes, cfg[blockStride[i]-1:blockStride[i]+self.block_bn_count+1], cfg_select[i]))
 
         return nn.Sequential(*layers)
 

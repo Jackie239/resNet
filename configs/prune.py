@@ -4,7 +4,7 @@ parser = argparse.ArgumentParser(description='resNet slimming')
 # test data
 parser.add_argument('--dataPath', type=str, default='./data',
                     help='path to dataset')
-parser.add_argument('--num_workers', type=int, default=6,
+parser.add_argument('--num_workers', type=int, default=0,
                     help='number of workers for data loading')
 # testing
 parser.add_argument('--batchSize', type=int, default=64,
