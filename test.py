@@ -1,6 +1,6 @@
 import os
 import torch
-import pickle
+import pandas as pd
 from torchvision import transforms
 from torchvision import datasets
 from torch.utils.data import DataLoader
@@ -18,15 +18,8 @@ def get_fashion_mnist_labels(labels):
 
 
 def main():
-    args = parser.parse_args(
-    args=['--device', 'cpu', '--checkEpoch', '10',
-           "--num_workers", '0'])
+    args = parser.parse_args()
     print(args)
-    if args.use_tensorboard:
-        log_dir = os.path.join(args.tensorboard_dir, str(args.checkSession))
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        writer = SummaryWriter(log_dir=log_dir)
     
     # pre-process
     # PIL -> torch.float32.Tensor
@@ -69,13 +62,10 @@ def main():
     resNet.eval()
     resNet.to(args.device)
 
-    # set log_interval to checkPoint for test
-    args.log_interval = args.checkPoint
-    iters_per_epoch = int(testSize / args.batchSize)
+    iters_per_epoch = int(((testSize + args.batchSize - 1) / args.batchSize))
     res = torch.zeros(testSize, dtype=torch.int8)
-    if args.use_tensorboard:
-        loss_avg_temp = 0.0
-        acc_avg_temp = 0.0
+    loss_avg_temp = 0.0
+    acc_avg_temp = 0.0
     for step, (images, label) in tqdm(enumerate(DataLoaderTest)):
         # move data to device
         images = images.to(args.device)
@@ -84,38 +74,29 @@ def main():
         scores = resNet(images)
         loss = criterion(scores, label)
         label_hat = scores.argmax(dim=1)
-        # log
-        if args.use_tensorboard:
-            # compute loss and accuracy
-            with torch.no_grad():
-                loss_avg_temp += loss.item()
-                acc_avg_temp += (label_hat == label).float().mean().item()
-        elif ((step+1) % args.log_interval == 0):
-            # loss average
-            loss_avg_temp /= args.log_interval
-            acc_avg_temp /= args.log_interval
-            writer.add_scalar('test/loss', loss_avg_temp, step+1)
-            writer.add_scalar('test/accuracy', acc_avg_temp, step+1)
-            loss_avg_temp = 0
-            acc_avg_temp = 0
-
         # store results
         res[step*args.batchSize : (step+1)*args.batchSize] = label_hat.cpu()
 
+        with torch.no_grad():
+            loss_avg_temp += loss.item()
+            acc_avg_temp += (label_hat == label).float().mean().item()
+    # compute loss and accuracy average
+    loss_avg_temp /= iters_per_epoch
+    acc_avg_temp /= iters_per_epoch
     # save results to file
     resultPath = os.path.join(
-        args.res_dir, args.checkSession, 'predictions_{}_{}_{}.csv'.format(
+        args.res_dir, str(args.checkSession), 'predictions_{}_{}_{}.csv'.format(
         args.checkSession, args.checkEpoch, args.checkPoint))
     if not os.path.exists(os.path.dirname(resultPath)):
         os.makedirs(os.path.dirname(resultPath))
 
-    res = res.view(-1, 1)
-    imageList = torch.arange(0, testSize).view(-1, 1)
-    res = torch.cat((imageList, res), dim=1)
-
-    with open(resultPath, 'wb') as f:
-            pickle.dump(res.numpy(), f, pickle.HIGHEST_PROTOCOL)
-    print(">>> test results saved to {}".format(resultPath))
+    df = pd.DataFrame({
+        "sampleIdx": torch.arange(0, testSize),
+        "predictionResult": res,
+        "average loss": loss_avg_temp,
+        "average accuracy": acc_avg_temp
+    })
+    df.to_csv(resultPath)
 
 if __name__ == "__main__":
     main()

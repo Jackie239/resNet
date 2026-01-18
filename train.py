@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from lib.model.resNet.resNet import ResNet
 from tqdm import tqdm
 from configs.train import parser
+import torch.nn as nn
 
 
 def get_fashion_mnist_labels(labels):
@@ -16,8 +17,14 @@ def get_fashion_mnist_labels(labels):
     return [text_labels[int(i)] for i in labels]
 
 
+def updateBN(model, lambdaSparsity):
+    for m in model.modules():
+        if isinstance(m, nn.BatchNorm2d):
+            m.weight.grad.data.add_(lambdaSparsity*torch.sign(m.weight.data))  # L1
+
+
 def main():
-    args = parser.parse_args(args=[])
+    args = parser.parse_args()
     print(args)
     if args.use_tensorboard:
         log_dir = os.path.join(args.tensorboard_dir, str(args.session))
@@ -57,7 +64,7 @@ def main():
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(resNet.parameters(), lr=args.lr)
 
-    iters_per_epoch = int(trainSize / args.batchSize)
+    iters_per_epoch = int(((trainSize + args.batchSize - 1) / args.batchSize))
     for epoch in tqdm(range(args.num_epochs), desc="Epochs", position=0):
     # for epoch in range(args.num_epochs):
         if args.use_tensorboard:
@@ -72,6 +79,8 @@ def main():
             loss = criterion(scores, label)
             optimizer.zero_grad()
             loss.backward()
+            if args.useNS:
+                updateBN(resNet, args.lambdaSparsity)
             optimizer.step()
             # log
             if args.use_tensorboard:
@@ -79,20 +88,20 @@ def main():
                 with torch.no_grad():
                     loss_avg_temp += loss.item()
                     acc_avg_temp += (scores.argmax(dim=1) == label).float().mean().item()
-            elif (step+1) % args.log_interval == 0:
-                # loss average
-                loss_avg_temp /= args.log_interval
-                acc_avg_temp /= args.log_interval
-                writer.add_scalar('train/loss', loss_avg_temp, epoch*iters_per_epoch+step+1)
-                writer.add_scalar('train/accuracy', acc_avg_temp, epoch*iters_per_epoch+step+1)
-                loss_avg_temp = 0
-                acc_avg_temp = 0
+                if (step+1) % args.log_interval == 0:
+                    # loss average
+                    loss_avg_temp /= args.log_interval
+                    acc_avg_temp /= args.log_interval
+                    writer.add_scalar('train/loss', loss_avg_temp, epoch*iters_per_epoch+step+1)
+                    writer.add_scalar('train/accuracy', acc_avg_temp, epoch*iters_per_epoch+step+1)
+                    loss_avg_temp = 0
+                    acc_avg_temp = 0
         # save model checkpoint
         if (epoch+1) % args.save_interval == 0:
             if not os.path.exists(args.checkpoint_dir):
                 os.makedirs(args.checkpoint_dir)
             modelSavePath = os.path.join(
-                args.checkpoint_dir, args.session,
+                args.checkpoint_dir, str(args.session),
                 "resNet_{}_{}_{}.pth".format(args.session, epoch+1, step+1))
             checkpoint = {'epoch': epoch + 1,
                         'step': step + 1,
