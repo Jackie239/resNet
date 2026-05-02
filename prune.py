@@ -60,14 +60,12 @@ def main():
     print("-----------------------------------")
     print(">>> Successfully build pruned model!")
     # test pruned model
-    resnet_pruned.to(args.device)
-    resnet_pruned.eval()
-    torch.manual_seed(42)
-    input = torch.randn(1, 1, 256, 256)
-    output_soft = resnet(input)
-    output_hard = resnet_pruned(input)
-    error = torch.norm(output_soft - output_hard)
-    print("error: {}".format(error))
-    pass
+    resnet18_pruned.to(args.device)
+    resnet18_pruned.eval()
+    acc = test(resnet18_pruned, args)
+    print(">>> hard pruned model accuracy: {}".format(acc))
+
+    
+
 if __name__ == "__main__":
     main()

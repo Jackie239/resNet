@@ -19,7 +19,7 @@ parser.add_argument('--checkEpoch', type=int, default=10,
 parser.add_argument('--checkPoint', type=int, default=469,
                     help='point id for this training')
 # device
-parser.add_argument('--device', type=str, default='cpu',
+parser.add_argument('--device', type=str, default='cuda',
                     help='cpu or cuda')
 # Prune settings
 parser.add_argument('--percent', type=float, default=0.4,
